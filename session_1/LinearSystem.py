@@ -36,7 +36,11 @@ class LinearSystem:
 
     def plot_traj(self) -> None:
         plt.plot(self.x[0, 0, :], self.x[1, 0, :],
-                 'x', linestyle='--', color='#685BF5')
+                 'x', linestyle='--', color='#685BF5', label = "Trajectory")
+        plt.legend()
+    
+    def plot_cost(self, P_N) -> None:
+        pass
 
     def plot_pred(self, horizon: int) -> None:
         pass
