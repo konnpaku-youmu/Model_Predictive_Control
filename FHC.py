@@ -17,6 +17,9 @@ class AutoCruising(LinearSystem.LinearSystem):
 
     def control_law(self, x, t) -> np.ndarray:
         return self.gains[0] @ x
+        
+    def pred(self, x, t) -> np.ndarray:
+        return self.gains[t] @ x
 
 
 def get_dynamics_continuous() -> Tuple[np.ndarray]:
@@ -62,19 +65,26 @@ def main():
     P_f = Q
 
     # Horizon
-    N = 20
+    N = 10
     # Calculer le gain optimal
     _, gains = ricatti_recursion(A, B, Q, R, P_f, N)
 
     # Simulation
-    x0 = np.array([[1.0], [1.0]]) # Condition initiale
+    x0 = np.array([[1.], [1.]]) # Condition initiale
 
-    sys = AutoCruising(A, B, x0) # Définir le système
-    n_steps = 10
+    sys = AutoCruising(A, B) # Définir le système
+    n_steps = 30
 
     sys.set_opti_gain(gains)
-    sys.simulate(sys.control_law, n_steps)
+    sys.simulate(x0, sys.control_law, n_steps)
+
     sys.plot_traj()
+
+    # Calculer le prédiction de la trajectoire
+    for t in range(n_steps):
+        x_pred = sys.prediction(sys.x[:, :, t], sys.pred, N);
+        
+        plt.plot(x_pred[0, 0, :], x_pred[1, 0, :], 'o', linestyle=':', color='#E07360')
 
     plt.show()
 
