@@ -46,6 +46,7 @@ def plot_state_trajectory(x_sequence, title: str = "Trajectory", ax = None, colo
         label (str, optional): Label for the legend. Defaults to "".
         park_dims (np.ndarray, optional): dimensions of the parking space. If they are omitted, the parking space is not shown. Defaults to None.
     """
+    plt.tight_layout()
     if ax is None:
         ax = plt.gca()
     ax.set_title(title)
@@ -70,6 +71,7 @@ def plot_state_trajectory(x_sequence, title: str = "Trajectory", ax = None, colo
             )
             ax.add_patch(car)
     plt.legend()
+    plt.grid(True)
     ax.plot(x_sequence[:,0], x_sequence[:,1], marker=".", color="black")
     ax.set_xlabel("$p_x$ [m]")
     ax.set_ylabel("$p_y$ [m]")

@@ -51,8 +51,7 @@ class MPCController:
         c_p, r_p = create_cover_circles(params.length, params.width, n_c)
         r2 = (r + r_p)**2
 
-        T_obs = x2T(x_obs, True)
-        circ_obs = [T_obs@center for center in c_p]
+        circ_obs = [x2T(obs, True)@center for center in c_p for obs in x_obs]
 
         # définir les contraintes d'état
         lb_states = np.array(
@@ -61,17 +60,21 @@ class MPCController:
             [params.max_pos_x, params.max_pos_y, params.max_heading, params.max_vel])
 
         # définir les contraintes anti-collision
-        lb_anti_colli = np.ones((n_c*n_c, 1)) * r2
-        ub_anti_colli = np.ones((n_c*n_c, 1)) * np.inf
+        lb_anti_colli = np.ones((n_c*len(circ_obs), 1)) * r2
+        ub_anti_colli = np.ones((n_c*len(circ_obs), 1)) * np.inf
 
         # définir les contraintes d'entrée
         lb_inputs = np.array([params.min_drive, -params.max_steer])
         ub_inputs = np.array([params.max_drive, params.max_steer])
 
         # définir les matrice Q, Q_N et R
-        Q = np.diag([1., 6., 0.2, 0.05])
-        Q_N = 100*Q
-        R = np.diag([1, 0.01])
+        # Q = np.diag(np.array([1, 3, 0.1, 0.01]))
+        # Q_N = 5*Q
+        # R = np.diag(np.array([1, 0.01]))
+
+        Q = np.diag([1., 10., 0.008, 0.001])
+        P_f = 20*Q
+        R = np.diag([2.5, 0.003])
 
         f = fwd_euler(model, self.ts)
 
@@ -103,7 +106,7 @@ class MPCController:
             lbg.append(lb_anti_colli)
             ubg.append(ub_anti_colli)
 
-        cost += x.T@Q_N@x
+        cost += x.T@P_f@x
 
         nlp = dict(f=cost, x=cs.vertcat(*u), g=cs.vertcat(*g), p=x0)
 
@@ -239,16 +242,17 @@ def test_circle() -> None:
 
 
 def main():
-    horizon = 30
+    horizon = 10
     steps = 100
     ts = 0.08
     params = VehicleParameters()
 
-    x_obs = np.array([0.25, 0, 0., 0.])
+    x_obs1 = np.array([0.23, 0, 0., 0.])
+    x_obs2 = np.array([-0.23, 0, 0., 0.])
     x0 = np.array([0.3, -0.1, 0., 0.])
 
     controller = MPCController(N=horizon, ts=ts, params=params, model=KinematicBicycle(
-        params=params, symbolic=True), x_obs=x_obs)
+        params=params, symbolic=True), x_obs=[x_obs1])
 
     solution = controller.solve(x0)
     controls = controller.reshape_input(solution)
@@ -258,40 +262,34 @@ def main():
 
     # Build the assumed model
     bicycle = KinematicBicycle(VehicleParameters())
-    dynamics_assumed = fwd_euler(bicycle, ts)
-
-    # print(f"--Simulate under the assumed model")
-    # x_open_loop_model = simulate(
-    #     x0, dynamics_assumed, n_steps=100, policy=controller)
 
     # With more accurate predictions:
-    print(f"--Simulate using more precise integration")
     dynamics_accurate = exact_integration(bicycle, ts)
-    x_open_loop_exact = simulate(
+    vehicle_states = simulate(
         x0, dynamics_accurate, n_steps=100, policy=controller)
 
     print(f"--Plotting the results")
 
-    print(f"---Plot Controls")
+    plt.figure()
     plot_input_sequence(controls, VehicleParameters())
-    plt.show()
-    print(f"---Plot trajectory under the predictions")
+    plt.tight_layout()
 
-    # plot_state_trajectory(
-    #     x_open_loop_model, color="tab:blue", label="Predicted")
-    # print("---Plot the trajectory under the more accurate model")
-    plot_state_trajectory(x_open_loop_exact, color="tab:red", label="Real", park_dims=PARK_DIMS)
-    plot_state_trajectory(np.vstack([x_obs]*100), color="#86EBA0", label="Obstacle")
+    plt.figure(figsize=(8, 4))
+    plot_state_trajectory(vehicle_states, color="tab:red", label="Vehicle", park_dims=PARK_DIMS)
+    plot_state_trajectory(np.vstack([x_obs1]*100), color="#86EBA0", label="Obstacle")
+    # plot_state_trajectory(np.vstack([x_obs2]*100), color="#86EBA0", label="Obstacle")
+
+    anim = AnimateParking()
+    anim.setup(vehicle_states, ts)
+    anim.add_car_trajectory(vehicle_states, color=(150, 10, 50))
+    anim.add_car_trajectory(np.array([x_obs1]), color=(15, 150, 50))
+    # anim.add_car_trajectory(np.array([x_obs2]), color=(15, 150, 50))
+    anim.trace(vehicle_states)
+    anim.run()
 
     plt.title("Trajectory (integration error)")
     plt.show()
 
-    # anim = AnimateParking()
-    # anim.setup(x_open_loop_exact, ts)
-    # anim.add_car_trajectory(x_open_loop_model, color=(150, 10, 50))
-    # anim.add_car_trajectory(np.array([[0.25, 0, 0., 0.]]), color=(50, 100, 50))
-    # anim.trace(x_open_loop_exact)
-    # anim.run()
 
 if __name__ == "__main__":
     main()
