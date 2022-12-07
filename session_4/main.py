@@ -7,6 +7,8 @@ from plotting import *
 from animation import AnimateParking
 from parameters import VehicleParameters
 from typing import Callable, Tuple
+from time import perf_counter
+import log
 import sys
 import casadi as cs
 import os
@@ -121,13 +123,17 @@ class MPCController:
     def reshape_input(self, sol):
         return np.reshape(sol["x"], ((-1, 2)))
 
-    def __call__(self, y):
+    def __call__(self, y, log):
         """Solve the OCP for initial state y.
 
         Args:
             y (np.ndarray): Measured state 
         """
+        start = perf_counter()
         solution = self.solve(y)
+        stop = perf_counter()
+        u = self.reshape_input(solution)
+        log("solver_time", stop-start)
         u = self.reshape_input(solution)
         return u[0]
 
@@ -242,13 +248,14 @@ def test_circle() -> None:
 
 
 def main():
+    # horizon = 30
     horizon = 10
     steps = 100
     ts = 0.08
     params = VehicleParameters()
 
-    x_obs1 = np.array([0.23, 0, 0., 0.])
-    x_obs2 = np.array([-0.23, 0, 0., 0.])
+    x_obs1 = np.array([0.25, 0, 0., 0.])
+    x_obs2 = np.array([-0.25, 0, 0., 0.])
     x0 = np.array([0.3, -0.1, 0., 0.])
 
     controller = MPCController(N=horizon, ts=ts, params=params, model=KinematicBicycle(
@@ -264,9 +271,10 @@ def main():
     bicycle = KinematicBicycle(VehicleParameters())
 
     # With more accurate predictions:
+    l = log.ControllerLog()
     dynamics_accurate = exact_integration(bicycle, ts)
     vehicle_states = simulate(
-        x0, dynamics_accurate, n_steps=100, policy=controller)
+        x0, dynamics_accurate, n_steps=100, policy=controller, log=l)
 
     print(f"--Plotting the results")
 
@@ -274,18 +282,21 @@ def main():
     plot_input_sequence(controls, VehicleParameters())
     plt.tight_layout()
 
+    plt.figure()
+    plt.plot(l.solver_time)
+
     plt.figure(figsize=(8, 4))
     plot_state_trajectory(vehicle_states, color="tab:red", label="Vehicle", park_dims=PARK_DIMS)
     plot_state_trajectory(np.vstack([x_obs1]*100), color="#86EBA0", label="Obstacle")
     # plot_state_trajectory(np.vstack([x_obs2]*100), color="#86EBA0", label="Obstacle")
 
-    anim = AnimateParking()
-    anim.setup(vehicle_states, ts)
-    anim.add_car_trajectory(vehicle_states, color=(150, 10, 50))
-    anim.add_car_trajectory(np.array([x_obs1]), color=(15, 150, 50))
-    # anim.add_car_trajectory(np.array([x_obs2]), color=(15, 150, 50))
-    anim.trace(vehicle_states)
-    anim.run()
+    # anim = AnimateParking()
+    # anim.setup(vehicle_states, ts)
+    # anim.add_car_trajectory(vehicle_states, color=(150, 10, 50))
+    # anim.add_car_trajectory(np.array([x_obs1]), color=(15, 150, 50))
+    # # anim.add_car_trajectory(np.array([x_obs2]), color=(15, 150, 50))
+    # anim.trace(vehicle_states)
+    # anim.run()
 
     plt.title("Trajectory (integration error)")
     plt.show()

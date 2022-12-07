@@ -70,6 +70,7 @@ def plot_state_trajectory(x_sequence, title: str = "Trajectory", ax = None, colo
                 **extra_arg
             )
             ax.add_patch(car)
+    
     plt.legend()
     plt.grid(True)
     ax.plot(x_sequence[:,0], x_sequence[:,1], marker=".", color="black")
