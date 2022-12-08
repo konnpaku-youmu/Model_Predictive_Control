@@ -223,11 +223,11 @@ def plot_cover_circle(x: np.float64, l: np.float64, w: np.float64, center: list[
     ax.add_patch(vehicle_rect)
     ax.set_aspect("equal")
 
-    # plt.title(r"Covering circle: with vehicle pose")
-    # plt.xlabel(r"$x$")
-    # plt.xlim(-2, 6)
-    # plt.ylabel(r"$y$")
-    # plt.ylim(-1, 5)
+    plt.title(r"Covering circle: with vehicle pose")
+    plt.xlabel(r"$x$")
+    plt.xlim(-2, 6)
+    plt.ylabel(r"$y$")
+    plt.ylim(-1, 5)
     plt.show()
 
 
@@ -247,8 +247,54 @@ def test_circle() -> None:
     plot_cover_circle(x, l, w, center_T, radius)
 
 
-def main():
-    # horizon = 30
+def test_realtime():
+    horizon = [10]
+    solver_time = []
+    # horizon = 10
+    steps = 100
+    ts = 0.08
+    params = VehicleParameters()
+
+    x_obs1 = np.array([0.25, 0, 0., 0.])
+    x_obs2 = np.array([-0.25, 0, 0., 0.])
+    x0 = np.array([0.3, -0.1, 0., 0.])
+
+    for h in horizon:
+        controller = MPCController(N=h, ts=ts, params=params, model=KinematicBicycle(
+            params=params, symbolic=True), x_obs=[x_obs1])
+
+        solution = controller.solve(x0)
+        controls = controller.reshape_input(solution)
+
+        # Build the assumed model
+        bicycle = KinematicBicycle(VehicleParameters())
+
+        # With more accurate predictions:
+        l = log.ControllerLog()
+        dynamics_accurate = exact_integration(bicycle, ts)
+        vehicle_states = simulate(
+            x0, dynamics_accurate, n_steps=steps, policy=controller, log=l)
+
+        solver_time.append(l.solver_time)
+
+    plt.figure(figsize=(12, 5))
+    plt.title("Computation time")
+
+    plt.hlines(ts, 0, 100, linestyles='--', label=r"$T_s={}$".format(ts))
+    plt.fill_between(range(100), 0, ts, alpha=0.35, color="#698C7A")
+    plt.fill_between(range(100), ts, 2, alpha=0.35, color="#DA796C")
+
+    for N, st in zip(horizon, solver_time):
+        plt.plot(st, label=r"$N={0}$".format(N), linewidth=0.8)
+        plt.yscale('log')
+    
+    plt.xlabel("Step")
+    plt.ylabel("Solving time (s)")
+    plt.legend()
+    plt.show()
+
+
+def run_simulation():
     horizon = 10
     steps = 100
     ts = 0.08
@@ -264,9 +310,6 @@ def main():
     solution = controller.solve(x0)
     controls = controller.reshape_input(solution)
 
-    def open_loop_policy(t):
-        return controls[t]
-
     # Build the assumed model
     bicycle = KinematicBicycle(VehicleParameters())
 
@@ -274,32 +317,32 @@ def main():
     l = log.ControllerLog()
     dynamics_accurate = exact_integration(bicycle, ts)
     vehicle_states = simulate(
-        x0, dynamics_accurate, n_steps=100, policy=controller, log=l)
-
-    print(f"--Plotting the results")
+        x0, dynamics_accurate, n_steps=steps, policy=controller, log=l)
 
     plt.figure()
     plot_input_sequence(controls, VehicleParameters())
     plt.tight_layout()
-
-    plt.figure()
-    plt.plot(l.solver_time)
 
     plt.figure(figsize=(8, 4))
     plot_state_trajectory(vehicle_states, color="tab:red", label="Vehicle", park_dims=PARK_DIMS)
     plot_state_trajectory(np.vstack([x_obs1]*100), color="#86EBA0", label="Obstacle")
     # plot_state_trajectory(np.vstack([x_obs2]*100), color="#86EBA0", label="Obstacle")
 
-    # anim = AnimateParking()
-    # anim.setup(vehicle_states, ts)
-    # anim.add_car_trajectory(vehicle_states, color=(150, 10, 50))
-    # anim.add_car_trajectory(np.array([x_obs1]), color=(15, 150, 50))
-    # # anim.add_car_trajectory(np.array([x_obs2]), color=(15, 150, 50))
-    # anim.trace(vehicle_states)
-    # anim.run()
+    anim = AnimateParking()
+    anim.setup(vehicle_states, ts)
+    anim.add_car_trajectory(vehicle_states, color=(150, 10, 50))
+    anim.add_car_trajectory(np.array([x_obs1]), color=(15, 150, 50))
+    # anim.add_car_trajectory(np.array([x_obs2]), color=(15, 150, 50))
+    anim.trace(vehicle_states)
+    anim.run()
 
     plt.title("Trajectory (integration error)")
+    
     plt.show()
+
+
+def main():
+    test_realtime()
 
 
 if __name__ == "__main__":
