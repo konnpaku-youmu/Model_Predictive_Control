@@ -171,8 +171,6 @@ def exercise4():
 
 
 
-
-
 def main():
 
     exercise3()

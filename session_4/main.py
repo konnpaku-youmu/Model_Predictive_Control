@@ -248,7 +248,7 @@ def test_circle() -> None:
 
 
 def test_realtime():
-    horizon = [10]
+    horizon = [30, 20, 10]
     solver_time = []
     # horizon = 10
     steps = 100
@@ -342,7 +342,14 @@ def run_simulation():
 
 
 def main():
-    test_realtime()
+    # uncomment the following line for assignment 4.2
+    # test_circle()
+
+    # uncomment the following line for assignment 4.5
+    run_simulation()
+
+    # uncomment the following line for assignment 4.6
+    # test_realtime()
 
 
 if __name__ == "__main__":

@@ -117,34 +117,49 @@ def run_and_plot_traj(A, B, Q, R, P_f, x0):
 def compare_term_cost(A, B, Q, R, P_f, x0):
     N_lst = range(1, 10)
     V_N = []
+    V_N_hat = []
 
     for N in N_lst:
-        P_n, _ = ricatti_recursion(A, B, Q, R, P_f, N)
+        P_n, K_n = ricatti_recursion(A, B, Q, R, P_f, N)
         P_N = P_n[0]
+        K_N = K_n[0]
+
+        sys = AutoCruising(A, B)  # Définir le système
+        n_steps = 100
+
+        sys.set_opti_gain(K_n)
+        sys.simulate(x0, sys.control_law, n_steps)
+        
+        V_N_hat.append(np.sum(np.diag(sys.x[:, 0, :].T @ Q @ sys.x[:, 0, :]) + np.diag(sys.x[:, 0, :].T @ K_N.T @ R @ K_N @ sys.x[:, 0, :])))
+
         V_N.append(np.squeeze(x0.T@P_N@x0))
 
     P_inf = linalg.solve_discrete_are(A, B, Q, R)
     V_inf = x0.T@P_inf@x0
 
-    plt.plot(N_lst, V_N)
-    plt.hlines(V_inf, 1, 10)
+    plt.plot(N_lst, V_N, label=r"$V_{N}$")
+    plt.plot(N_lst, V_N_hat, label=r"$\hat{V}_{N}$")
+    plt.hlines(V_inf, 1, 10, label=r"$V_{\infty}$", colors="#DE5D71", linestyles="--")
+    plt.legend()
+    plt.xlabel("Horizon")
+    plt.ylabel("Cost")
+    plt.ylim(0, 2000)
     plt.show()
 
 
 def main():
-    # Intervalle d'échantillonnage
     T_s = 0.5
     A, B = get_dynamics_discrete(T_s)
 
-    C = np.array([[1], [-2/3]])
-    Q = np.matmul(C, C.T) + 1e-3 * np.eye(2, 2)
-    R = np.array([0.1])
+    C = np.array([[1, -2/3]])
+    Q = np.matmul(C.T, C) + 1e-3 * np.eye(2, 2)
+    R = np.array([[0.1]])
     P_f = Q
 
     x0 = np.array([[10.], [10.]])  # Condition initiale
 
-    # run_and_plot_traj(A, B, Q, R, P_f, x0)
-    compare_term_cost(A, B, Q, R, P_f, x0)
+    run_and_plot_traj(A, B, Q, R, P_f, x0)
+    # compare_term_cost(A, B, Q, R, P_f, x0)
 
 
 if __name__ == "__main__":

@@ -153,14 +153,14 @@ class MPCController:
                 "ubg": [np.ndarray] Upper bounds on the nonlinear constraint g 
                 }
         """
-        
+
         # Create a parameter for the initial state. 
         x0 = cs.SX.sym("x0", (4,1))
         x = x0
-        
+
         # Create a decision variable for the controls 
         u = [cs.SX.sym(f"u_{t}", (2,1)) for t in range(self.N)]
-        self.u = u 
+        self.u = u
 
         # Create the weights for the states 
         Q = cs.diagcat(1, 3, 0.1, 0.01)
@@ -175,7 +175,7 @@ class MPCController:
         # TODO fill in the state and input bounds 
         states_lb = np.array([params.min_pos_x, params.min_pos_y, params.min_heading, params.min_vel])
         states_ub = np.array([params.max_pos_x, params.max_pos_y, params.max_heading, params.max_vel])
-        
+
         # -- Input bounds 
         inputs_lb = np.array([params.min_drive, -params.max_steer])
         inputs_ub = np.array([params.max_drive, params.max_steer])
@@ -187,7 +187,7 @@ class MPCController:
         ubg = []
 
         # TODO: Implement the dynamical model
-        
+
         ode = KinematicBicycle(params, symbolic=True)
         f = forward_euler(ode, self.ts)
 
@@ -200,7 +200,7 @@ class MPCController:
             g.append(x)   # Bound the state 
             lbg.append(states_lb)
             ubg.append(states_ub)
-        
+
         cost += x.T @ QT @ x
 
         variables = cs.vertcat(*u)
@@ -308,7 +308,7 @@ def plot_states_separately(x_sequence):
     plt.ylabel("$v$")
     plt.xlabel("$t$")
     plt.tight_layout()
-    
+
 
 def rel_error(val, ref):
     """Compute the relative errors between `val` and `ref`, taking the ∞-norm along axis 1. 
@@ -333,7 +333,7 @@ def exercise1():
 
     for ts in sample_times:
         compare_open_loop(ts, x0, steps)
-    
+
 def exercise2():
     print("Exercise 2 -- Pen and paper.")
 
@@ -393,7 +393,7 @@ def exercise4():
     x0 = np.array([0.6, -0.25, 0, 0])
     print("--Set up the MPC controller")
     controller = MPCController(N=N, ts=ts, params=VehicleParameters())
-    
+
     print("--Solve for the optimal closed-loop control sequence")
     solution = controller.solve(x0)
     controls = controller.reshape_input(solution)
@@ -432,20 +432,20 @@ def exercise4():
     plt.show()
 
     print("---Extra: run an animation")
-    
+
     anim = AnimateParking()
     anim.setup(x_open_loop_exact, ts)
     anim.add_car_trajectory(x_open_loop_model, color=(150, 10, 50))
     anim.trace(x_open_loop_exact)
     anim.run()
- 
+
 
 def exercise5(): 
     print("Exercise 5")
     N=50
     ts = 0.05
     x0 = np.array([0.6, -0.25, 0, 0])
-    
+
     nstep = 100
 
     # Build the assumed model
@@ -453,7 +453,7 @@ def exercise5():
     dynamics_assumed = forward_euler(bicycle, ts)
     print("--Set up the MPC controller")
     controller = MPCController(N=N, ts=ts, params=VehicleParameters())
-    
+
     print("--Simulate the controller in closed-loop (the __call__ method is invoked every time step)")
     x_closed_loop_model = simulate(x0, dynamics_assumed, n_steps=nstep, policy=controller)
 
@@ -489,8 +489,8 @@ def exercise5():
 
 
 if __name__ == "__main__":
-    exercise1()
-    exercise2()
+    # exercise1()
+    # exercise2()
     exercise3()
-    exercise4()
-    exercise5()
+    # exercise4()
+    # exercise5()
