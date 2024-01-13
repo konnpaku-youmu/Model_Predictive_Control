@@ -97,6 +97,8 @@ def run_and_plot_traj(A, B, Q, R, P_f, x0):
     P_inf = linalg.solve_discrete_are(A, B, Q, R)
     K_inf = -inv(R + B.T@P_inf@B)@B.T@P_inf@A
 
+    print(K_inf)
+
     sys.set_opti_gain([K_inf] * N)
     sys.simulate(x0, sys.control_law, n_steps)
 

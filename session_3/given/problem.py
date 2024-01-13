@@ -27,6 +27,9 @@ class Problem:
         self.A = np.array([[1.0, self.Ts], [0, 1.0]])
         self.B = np.array([[0], [self.Ts]])
 
+    def f(self, x, u):
+        return self.A @ x + self.B @ u
+
     @property
     def n_state(self):
         return self.A.shape[0]
