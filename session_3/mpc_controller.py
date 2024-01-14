@@ -1,7 +1,7 @@
 from typing import Optional
 import casadi as cs
 from given.problem import Problem
-from rcracers.utils.geometry import Polyhedron
+from rcracers.utils.geometry import Polyhedron, Ellipsoid
 from rcracers.utils.lqr import LqrSolution
 from rcracers.utils import quadprog
 import cvxpy as cp
@@ -28,11 +28,11 @@ def unpack_inputs(sol: quadprog.QuadProgSolution, problem: Problem) -> np.ndarra
 
 
 class MPC:
-    def __init__(self, problem: Problem, Xf: Optional[Polyhedron],
-                 lqr_solution: Optional[LqrSolution]) -> None:
+    def __init__(self, problem: Problem, Xf: Optional[Ellipsoid],
+                 terminal_control: Optional[LqrSolution]) -> None:
         self.problem = problem
         self.Xf = Xf
-        self.term_controller = lqr_solution
+        self.term_controller = terminal_control
         self.ocp_solver = self._build()
 
     def _build(self):
@@ -88,7 +88,6 @@ class MPCCvxpy(MPC):
             [cp.quad_form(xk, Q) + cp.quad_form(uk, R) for xk, uk in zip(x, u)]
         )
 
-
         constraints = (
             [uk >= u_min for uk in u]
             + [uk <= u_max for uk in u]
@@ -106,8 +105,10 @@ class MPCCvxpy(MPC):
         else:
             cost += cp.quad_form(x[-1], Q)
 
-        if self.Xf is not None:
+        if type(self.Xf) is Polyhedron:
             constraints += [self.Xf.H @ x[-1] <= self.Xf.h]
+        elif type(self.Xf) is Ellipsoid:
+            constraints += [x[-1].T @ self.Xf.shape_matrix @ x[-1] <= 1]
 
         solver = cp.Problem(cp.Minimize(cost), constraints)
 
