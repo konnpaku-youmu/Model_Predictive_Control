@@ -82,8 +82,8 @@ def get_system_equations(
             f = cs.Function("f", [x, w], [dynamics(x) + w])
             h = cs.Function("h", [x], [measure(x)])
         else:
-            f = cs.Function("f", [x], [f(x)])
-            h = cs.Function("h", [x], [h(x)])
+            f = cs.Function("f", [x], [dynamics(x)])
+            h = cs.Function("h", [x], [measure(x)])
         return f, h
 
     if noise:
