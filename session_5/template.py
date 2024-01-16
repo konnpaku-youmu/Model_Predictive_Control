@@ -67,13 +67,16 @@ class EKF:
 
 
 class MHE:
-    def __init__(self, f: cs.Function, h: cs.Function, x0_est, σ_w, σ_v, σ_p) -> None:
+    def __init__(self, f: cs.Function, h: cs.Function, horizon, σ_w, σ_v, lbx=-np.inf, ubx=np.inf, use_prior=False) -> None:
         """Create an instance of this `MHE`.
         Pass required arguments and build the MHE problem using
             `build_mhe`. You can use the output of `get_system_equations`.
         """
         self.f = f
         self.h = h
+        self.N = horizon
+        self.lbx, self.ubx = lbx, ubx
+        self.use_prior = use_prior
 
         # Integer invariants
         self.n = self.f.size1_out(0)
@@ -81,21 +84,39 @@ class MHE:
 
         self.Q = np.eye(self.n) * σ_w**2
         self.R = np.eye(self.p) * σ_v**2
-        self.Pk = np.eye(self.n) * σ_p**2
 
-        self.x_hat = x0_est
+        self.solver = self.build(horizon)
 
+        self.y_ = []
+    
+    def loss(self, w, v):
+        return w.T @ np.linalg.inv(self.Q) @ w + v.T @ np.linalg.inv(self.R) @ v
+
+    def build(self, horizon):
+        return build_mhe(self.loss, self.f, self.h, horizon,
+                         lbx=self.lbx, ubx=self.ubx, use_prior=self.use_prior)
 
     def __call__(self, y: np.ndarray, log: LOGGER):
         """Process a measurement
-            TODO: Implement MHE using the solver produced by `build_mhe`.
+            Implement MHE using the solver produced by `build_mhe`.
 
         :param y: the measurement
         :param log: the logger for output
         """
+        self.y_.append(y)
+        if len(self.y_) > self.N:
+            self.y_.pop(0)
+
+        solver = self.solver
+        if len(self.y_) < self.N:
+            # rebuild MHE with smaller horizon
+            solver = self.build(len(self.y_))
+
+        x, w = solver(self.y_)
+
         # log the state estimate and the measurement for plotting
         log("y", y)
-        log("x", np.zeros(3))
+        log("x", x[-1])
 
 
 def part_1():
@@ -119,7 +140,6 @@ def part_1():
     n_steps = 400
     f, h = get_system_equations(noise=(0.0, cfg.sig_v), Ts=cfg.Ts, rg=cfg.rg)
     x = simulate(cfg.x0, f, n_steps, policy=ekf, measure=h, log=log)
-
     t = np.arange(0, n_steps + 1) * cfg.Ts
 
     # plot output in `x` and `log.x`
@@ -133,22 +153,24 @@ def part_2():
     cfg = default_config()
 
     # setup the extended kalman filter
-    fs, hs = get_system_equations(symbolic=True, noise=(
-        0.0, cfg.sig_v), Ts=cfg.Ts, rg=cfg.rg)
+    fs, hs = get_system_equations(symbolic=True, noise=True, Ts=cfg.Ts, rg=cfg.rg)
 
-    mhe = MHE()
+    N = 25
+    mhe = MHE(fs, hs, horizon=N, σ_w=cfg.sig_w,
+              σ_v=cfg.sig_v, lbx=0.0, ubx=10.0)
 
     # prepare log
     log = ObserverLog()
     log.append("x", cfg.x0_est)  # add initial estimate
 
     # simulate
+    n_steps = 400
     f, h = get_system_equations(noise=(0.0, cfg.sig_v), Ts=cfg.Ts, rg=cfg.rg)
-    x = simulate(cfg.x0, f, n_steps=400, policy=mhe, measure=h, log=log)
+    x = simulate(cfg.x0, f, n_steps, policy=mhe, measure=h, log=log)
+    t = np.arange(0, n_steps + 1) * cfg.Ts
 
     # plot output in `x` and `log.x`
-    print(f'{x.shape=}')
-    print(f'{log.x.shape=}')
+    show_result(t, x, log.x)
 
 
 def part_3():
@@ -210,6 +232,6 @@ def show_result(t: np.ndarray, x: np.ndarray, x_: np.ndarray):
 
 
 if __name__ == "__main__":
-    part_1()
-    # part_2()
+    # part_1()
+    part_2()
     # part_3()
