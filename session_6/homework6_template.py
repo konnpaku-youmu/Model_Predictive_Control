@@ -11,17 +11,18 @@ def lqr_factor_step(N: int, nl: problem.NewtonLagrangeQP) -> problem.NewtonLagra
     # Begin TODO----------------------------------------------------------
     Q, S, R, q, r, A, B, c = nl.Qk, nl.Sk, nl.Rk, nl.qk, nl.rk, nl.Ak, nl.Bk, nl.ck
 
-    P, s = nl.QN, nl.qN
+    K, s, P, e= np.zeros([R.shape[0], R.shape[1], S.shape[2]]), np.zeros([q.shape[0] + 1, q.shape[1], q.shape[2]]) , np.zeros([Q.shape[0] + 1, Q.shape[1], Q.shape[2]]), np.zeros_like(R)
+    P[N], s[N] = nl.QN, nl.qN
     for k in range(N-1, -1, -1):
-        R_bar = R[k] + B[k].T@P@B[k]
-        S_bar = S[k] + B[k].T@P@A[k]
-        y = P@c[k] + s
+        R_bar = R[k] + B[k].T@P[k+1]@B[k]
+        S_bar = S[k] + B[k].T@P[k+1]@A[k]
+        y = P[k+1]@c[k] + s[k+1]
 
         R_bar_inv = -np.linalg.inv(R_bar)
-        K = -R_bar_inv@S_bar
-        e = -R_bar_inv@(B[k].T@y + r[k])
-        s = S_bar.T@e + A[k].T@y + q[k]
-        P = Q[k] + A[k].T@P@A[k] + S_bar.T@K
+        K[k] = -R_bar_inv@S_bar
+        e[k] = -R_bar_inv@(B[k].T@y + r[k])
+        s[k] = S_bar.T@e[k] + A[k].T@y + q[k]
+        P[k] = Q[k] + A[k].T@P[k+1]@A[k] + S_bar.T@K[k]
 
     # End TODO -----------------------------------------------------------
     return problem.NewtonLagrangeFactors(K, s, P, e)
@@ -37,11 +38,13 @@ def lqr_solve_step(
     fac: problem.NewtonLagrangeFactors
 ) -> problem.NewtonLagrangeUpdate:
     # Begin TODO----------------------------------------------------------
-    Δx = 0
+    Δx, Δu, p = np.zeros([prob.N+1, prob.ns, 1]), np.zeros([prob.N+1, prob.nu, 1]), np.zeros_like(fac.s)
     for k in range(prob.N):
-        Δu = fac.K
+        Δu[k] = fac.K[k]@Δx[k] + fac.e[k]
+        Δx[k+1] = nl.Ak[k]@Δx[k] + nl.Bk[k]@Δu[k] + nl.ck[k]
+        p[k+1] = fac.P[k+1]@Δx[k+1] + fac.s[k+1]
     # End TODO -----------------------------------------------------------
-    return problem.NewtonLagrangeUpdate(Δx, Δu, p)
+    return problem.NewtonLagrangeUpdate(np.squeeze(Δx), np.squeeze(Δu), np.squeeze(p))
 
 
 def armijo_condition(merit: problem.FullCostFunction, x_plus, u_plus, x, u, dx, du, c, σ, α):
@@ -81,13 +84,14 @@ def update_iterate(zk: problem.NLIterate, update: problem.NewtonLagrangeUpdate, 
                 "No merit function was passed but line search was requested")
         return armijo_linesearch(zk, update, merit_function)
     # Begin TODO----------------------------------------------------------
-    raise NotImplementedError(
-        "Implement regular Newton-Lagrange update in update_iterate!")
+
+
+
     # End TODO -----------------------------------------------------------
     # Hint: The initial state must remain fixed. Only update from time index 1!
-    xnext = ...
-    unext = ...
-    pnext = ...
+    xnext = np.array([zk.x[0]] + [zk.x[k] + update.dx[k] for k in range(1, zk.x.shape[0])])
+    unext = np.array([zk.u[k] + update.du[k] for k in range(0, zk.u.shape[0])])
+    pnext = update.p[1:, :]
     return problem.NLIterate(
         x=xnext,
         u=unext,
@@ -198,8 +202,8 @@ def test_linear_system():
 
     logger = problem.Logger(p, initial_guess)
     result = newton_lagrange(p, initial_guess, log_callback=logger)
-    # assert result.success, "Newton Lagrange did not converge on a linear system! Something is wrong!"
-    # assert result.n_its < 2, "Newton Lagrange took more than 2 iterations!"
+    assert result.success, "Newton Lagrange did not converge on a linear system! Something is wrong!"
+    assert result.n_its < 2, "Newton Lagrange took more than 2 iterations!"
 
 
 def exercise2():
