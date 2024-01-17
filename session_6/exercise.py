@@ -12,6 +12,13 @@ import os
 WORKING_DIR = os.path.split(__file__)[0]
 
 
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.size": 16
+})
+
+
 @dataclass
 class QuadraticFunction:
     """
@@ -76,7 +83,6 @@ def get_Bbar(problem: Problem):
 
 
 def convert_to_single_shooting(prob: Problem) -> QuadraticFunction:
-
     Q_blk = np.kron(np.eye(prob.N+1), prob.Q)
     Q_blk[-prob.ns:, -prob.ns:] = prob.P
     R_blk = np.kron(np.eye(prob.N), prob.R)
@@ -88,6 +94,7 @@ def convert_to_single_shooting(prob: Problem) -> QuadraticFunction:
     G = B_bar.T @ Q_blk.T @ A_bar
 
     return QuadraticFunction(H, G, prob.x0)
+
 
 
 def line_search(f: QuadraticFunction, γ: float, u_next, u):
@@ -120,7 +127,7 @@ def projected_gradient(f: QuadraticFunction, γ: float, U: Box, *, max_it: int =
             while True:
                 if use_nesterov:
                     u_next = U.Π(v - γ * f.grad(v))
-                    v = u + a*(u_next - u)
+                    v = u_next + a*(u_next - u)
                 else:
                     u_next = U.Π(u - γ * f.grad(u))
                 if f(u_next) <= f(u) + f.grad(u).T@(u_next - u) + 1/(2*γ)*np.linalg.norm(u_next - u)**2:
@@ -129,7 +136,7 @@ def projected_gradient(f: QuadraticFunction, γ: float, U: Box, *, max_it: int =
         else:
             if use_nesterov:
                 u_next = U.Π(v - γ * f.grad(v))
-                v = u + a*(u_next - u)
+                v = u_next + a*(u_next - u)
             else:
                 u_next = U.Π(u - γ * f.grad(u))
 
@@ -140,6 +147,10 @@ def projected_gradient(f: QuadraticFunction, γ: float, U: Box, *, max_it: int =
     solver_res.optimal_value = f(u)
 
     return solver_res
+
+
+def AMA():
+    pass
 
 
 def simulate_results(problem: Problem, results: OptimizerStats) -> np.ndarray:
@@ -233,18 +244,29 @@ def exercise5():
     res_ls = projected_gradient(cost_func, 100.0/Lf, U, use_nesterov=True, a=ακ, use_linesearch=True)
 
     plt.figure()
-    plot_convergence_rate(res_plain)
-    plot_convergence_rate(res_nest)
-    plot_convergence_rate(res_ls)
+    plot_convergence_rate(res_plain, label="Plain")
+    plot_convergence_rate(res_nest, label="avec Nesterov Acc.")
+    plot_convergence_rate(res_ls, label="avec Line-search \& Nesterov Acc.")
+    plt.legend()
 
     x = simulate_results(problem, res_ls)
     plt.figure()
-    plt.plot(x[:, 0], x[:, 1])
+    plt.plot(x[:, 0])
     plt.axhline(0, color="k", linestyle="--")
     plt.xlabel("Position")
     plt.ylabel("Velocity")
     plt.title("Predicted state trajectory under optimal solution (Proj. grad.)")
     plt.show()
+
+
+def exercise6():
+    problem = Problem()
+    cost_func = convert_to_single_shooting(problem)
+    U = Box(problem.u_min * np.ones(cost_func.input_dim),
+            problem.u_max * np.ones(cost_func.input_dim))
+
+    H_inv = np.linalg.inv(cost_func.H)
+    
 
 
 if __name__ == "__main__":
