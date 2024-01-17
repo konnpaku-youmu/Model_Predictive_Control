@@ -8,7 +8,6 @@ WORKING_DIR = os.path.split(__file__)[0]
 
 
 def lqr_factor_step(N: int, nl: problem.NewtonLagrangeQP) -> problem.NewtonLagrangeFactors:
-    # Begin TODO----------------------------------------------------------
     Q, S, R, q, r, A, B, c = nl.Qk, nl.Sk, nl.Rk, nl.qk, nl.rk, nl.Ak, nl.Bk, nl.ck
 
     K, s, P, e= np.zeros([R.shape[0], R.shape[1], S.shape[2]]), np.zeros([q.shape[0] + 1, q.shape[1], q.shape[2]]) , np.zeros([Q.shape[0] + 1, Q.shape[1], Q.shape[2]]), np.zeros_like(R)
@@ -17,14 +16,11 @@ def lqr_factor_step(N: int, nl: problem.NewtonLagrangeQP) -> problem.NewtonLagra
         R_bar = R[k] + B[k].T@P[k+1]@B[k]
         S_bar = S[k] + B[k].T@P[k+1]@A[k]
         y = P[k+1]@c[k] + s[k+1]
-
-        R_bar_inv = -np.linalg.inv(R_bar)
+        R_bar_inv = np.linalg.inv(R_bar)
         K[k] = -R_bar_inv@S_bar
         e[k] = -R_bar_inv@(B[k].T@y + r[k])
         s[k] = S_bar.T@e[k] + A[k].T@y + q[k]
         P[k] = Q[k] + A[k].T@P[k+1]@A[k] + S_bar.T@K[k]
-
-    # End TODO -----------------------------------------------------------
     return problem.NewtonLagrangeFactors(K, s, P, e)
 
 
@@ -37,13 +33,11 @@ def lqr_solve_step(
     nl: problem.NewtonLagrangeQP,
     fac: problem.NewtonLagrangeFactors
 ) -> problem.NewtonLagrangeUpdate:
-    # Begin TODO----------------------------------------------------------
     Δx, Δu, p = np.zeros([prob.N+1, prob.ns, 1]), np.zeros([prob.N+1, prob.nu, 1]), np.zeros_like(fac.s)
     for k in range(prob.N):
         Δu[k] = fac.K[k]@Δx[k] + fac.e[k]
         Δx[k+1] = nl.Ak[k]@Δx[k] + nl.Bk[k]@Δu[k] + nl.ck[k]
         p[k+1] = fac.P[k+1]@Δx[k+1] + fac.s[k+1]
-    # End TODO -----------------------------------------------------------
     return problem.NewtonLagrangeUpdate(np.squeeze(Δx), np.squeeze(Δu), np.squeeze(p))
 
 
@@ -215,8 +209,10 @@ def exercise2():
 
     # Select initial guess by running an open-loop simulation
     # Begin TODO----------------------------------------------------------
-    raise NotImplementedError("Construct the required initial guess!")
-    initial_guess = ...
+    u0 = np.zeros((p.N, p.nu))
+    x0 = np.zeros((p.N+1, p.ns))
+    x0[0] = p.x0
+    initial_guess = problem.NLIterate(x0, u0, np.zeros_like(x0))
     # End TODO -----------------------------------------------------------
     logger = problem.Logger(p, initial_guess)
     stats = newton_lagrange(p, initial_guess, log_callback=logger)
@@ -235,9 +231,11 @@ def exercise34(linesearch: bool):
 
     # Select initial guess by running an open-loop simulation
     # Begin TODO----------------------------------------------------------
-    raise NotImplementedError(
-        "Select the initial guess from an open-loop simulation")
-    initial_guess = ...
+    u0 = np.zeros((p.N, p.nu))
+    x0 = np.zeros((p.N+1, p.ns))
+    x0[0] = p.x0
+
+    initial_guess = problem.NLIterate(x0, u0, np.zeros_like(x0))
     # End TODO -----------------------------------------------------------
 
     logger = problem.Logger(p, initial_guess)
@@ -256,8 +254,10 @@ def exercise56(regularize=False):
 
     # Select initial guess by running an open-loop simulation
     # Begin TODO----------------------------------------------------------
-    raise NotImplementedError(
-        "Construct the initial guess for your solver from simulation.")
+    u0 = np.zeros((p.N, p.nu))
+    x0 = np.zeros((p.N+1, p.ns))
+    x0[0] = p.x0
+    initial_guess = problem.NLIterate(x0, u0, np.zeros_like(x0))
     # End TODO -----------------------------------------------------------
 
     logger = problem.Logger(p, initial_guess)
@@ -275,9 +275,9 @@ def exercise56(regularize=False):
 
 
 if __name__ == "__main__":
-    test_linear_system()
+    # test_linear_system()
     # exercise2()
-    # exercise34(False)
+    exercise34(False)
     # exercise34(True)
     # exercise56(regularize=False)
     # exercise56(regularize=True)
