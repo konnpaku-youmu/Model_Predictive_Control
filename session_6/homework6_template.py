@@ -235,6 +235,11 @@ def exercise34(linesearch: bool):
     x0 = np.zeros((p.N+1, p.ns))
     x0[0] = p.x0
 
+    def policy(u):
+        return np.zeros_like(u)
+    
+    x_sim = simulate(p.x0, f, p.N, policy=policy)
+
     initial_guess = problem.NLIterate(x0, u0, np.zeros_like(x0))
     # End TODO -----------------------------------------------------------
 
@@ -276,8 +281,8 @@ def exercise56(regularize=False):
 
 if __name__ == "__main__":
     # test_linear_system()
-    # exercise2()
-    exercise34(False)
+    exercise2()
+    # exercise34(False)
     # exercise34(True)
     # exercise56(regularize=False)
     # exercise56(regularize=True)

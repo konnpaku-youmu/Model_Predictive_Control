@@ -13,7 +13,7 @@ import LinearSystem
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
-    "font.size": 14
+    "font.size": 16
 })
 
 
@@ -62,7 +62,8 @@ def ricatti_recursion(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray
 
 
 def run_and_plot_traj(A, B, Q, R, P_f, x0):
-    plt.figure(1)
+    print("-"*50 + "Assignment 1.1" + "-"*50)
+    plt.figure(figsize=(15, 5))
 
     # Horizon
     N_lst = [4, 6, 10]
@@ -80,7 +81,7 @@ def run_and_plot_traj(A, B, Q, R, P_f, x0):
         sys.simulate(x0, sys.control_law, n_steps)
 
         plt.subplot(1, 3, idx+1)
-        plt.title(r"$N = {}$".format(N))
+        plt.title(r"$\mathbf{N = %s}$" % N)
         sys.plot_traj()
 
         # Calculer le prédiction de la trajectoire
@@ -97,7 +98,7 @@ def run_and_plot_traj(A, B, Q, R, P_f, x0):
     P_inf = linalg.solve_discrete_are(A, B, Q, R)
     K_inf = -inv(R + B.T@P_inf@B)@B.T@P_inf@A
 
-    print(K_inf)
+    print("K_inf = {0}".format(K_inf))
 
     sys.set_opti_gain([K_inf] * N)
     sys.simulate(x0, sys.control_law, n_steps)
@@ -113,10 +114,13 @@ def run_and_plot_traj(A, B, Q, R, P_f, x0):
         plt.ylabel(r"$v_x$")
         plt.title(r"Infinite Horizon Controller")
 
+    print("*"*120)
+
     plt.show()
 
 
 def compare_term_cost(A, B, Q, R, P_f, x0):
+    print("-"*50 + "Assignment 1.2" + "-"*50)
     N_lst = range(1, 10)
     V_N = []
     V_N_hat = []
@@ -131,8 +135,9 @@ def compare_term_cost(A, B, Q, R, P_f, x0):
 
         sys.set_opti_gain(K_n)
         sys.simulate(x0, sys.control_law, n_steps)
-        
-        V_N_hat.append(np.sum(np.diag(sys.x[:, 0, :].T @ Q @ sys.x[:, 0, :]) + np.diag(sys.x[:, 0, :].T @ K_N.T @ R @ K_N @ sys.x[:, 0, :])))
+
+        V_N_hat.append(np.sum(np.diag(sys.x[:, 0, :].T @ Q @ sys.x[:, 0, :]) + np.diag(
+            sys.x[:, 0, :].T @ K_N.T @ R @ K_N @ sys.x[:, 0, :])))
 
         V_N.append(np.squeeze(x0.T@P_N@x0))
 
@@ -141,11 +146,16 @@ def compare_term_cost(A, B, Q, R, P_f, x0):
 
     plt.plot(N_lst, V_N, label=r"$V_{N}$")
     plt.plot(N_lst, V_N_hat, label=r"$\hat{V}_{N}$")
-    plt.hlines(V_inf, 1, 10, label=r"$V_{\infty}$", colors="#DE5D71", linestyles="--")
-    plt.legend()
+    plt.hlines(V_inf, 1, 10, label=r"$V_{\infty}$",
+               colors="#DE5D71", linestyles="--")
+    plt.legend(fontsize=20)
+    plt.title(r"\textbf{Terminal cost of LQR \& Finite-horizon MPC}")
     plt.xlabel("Horizon")
     plt.ylabel("Cost")
-    plt.ylim(0, 2000)
+    plt.ylim(0, 2e3)
+
+    print("*"*120)
+
     plt.show()
 
 
@@ -161,8 +171,8 @@ def main():
     x0 = np.array([[10.], [10.]])  # Condition initiale
 
     run_and_plot_traj(A, B, Q, R, P_f, x0)
-    # compare_term_cost(A, B, Q, R, P_f, x0)
+    compare_term_cost(A, B, Q, R, P_f, x0)
 
 
 if __name__ == "__main__":
-    main()
+    main()  # assignment 1.1 and 1,2

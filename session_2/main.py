@@ -1,6 +1,7 @@
 from log import ControllerLog
 from rcracers.simulator import simulate
 from typing import Tuple
+from functools import reduce
 import numpy as np
 import cvxpy as cp
 from rcracers.utils import quadprog
@@ -15,7 +16,7 @@ sys.path.append(os.path.split(__file__)[0])  # Allow relative imports
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
-    "font.size": 12
+    "font.size": 16
 })
 
 
@@ -157,7 +158,9 @@ class MPCCvxpy(MPC):
             + [uk <= u_max for uk in u]
             + [xk >= x_min for xk in x]
             + [xk <= x_max for xk in x]
-            + [xk[0] + 0.5*Ts**2*u_min*(N**2-N)+xk[1]*Ts*N <= self.problem.p_max for xk in x]
+            # Comment out the following line to recreate the infeasible case for 2.3
+            + [xk[0] + 0.5*Ts**2*u_min * \
+                (N**2-N)+xk[1]*Ts*N <= self.problem.p_max for xk in x]
             + [xk1 == A @ xk + B @ uk for xk1, xk, uk in zip(x[1:], x, u)]
             + [x[0] == x0]
         )
@@ -212,6 +215,7 @@ class MPCCvxpy(MPC):
 
 
 def run_mpc_simulation(weak_brakes: bool = False, horizon: int = 5):
+    print("-"*50 + "Assignment 2.3" + "-"*50)
     # Get the problem data
     problem = Problem(N=horizon)
     if weak_brakes:  # Exercise 7!
@@ -231,7 +235,7 @@ def run_mpc_simulation(weak_brakes: bool = False, horizon: int = 5):
 
     # Plot the state trajectory
     default_style = dict(marker=".", color="b")
-    plt.figure(figsize=[15, 6])
+    plt.figure(figsize=[15, 5])
     plt.subplot(1, 2, 1)
     plt.plot(x_sim[:, 0], x_sim[:, 1], **default_style)
 
@@ -253,8 +257,9 @@ def run_mpc_simulation(weak_brakes: bool = False, horizon: int = 5):
     plt.xlabel("Position")
     plt.ylabel("Velocity")
     if np.any(failures):
-        plt.legend()
-    plt.title(r"\textbf{Closed-loop trajectory of the vehicle. (%s)}" % policy.name)
+        plt.legend(fontsize=16)
+    plt.title(
+        r"\textbf{Closed-loop trajectory of the vehicle. (%s)}" % policy.name)
 
     plt.subplot(1, 2, 2)
     inputs = [u[0] for u in logs.input_prediction]
@@ -263,43 +268,67 @@ def run_mpc_simulation(weak_brakes: bool = False, horizon: int = 5):
     plt.ylabel("Control action")
     plt.title(r"\textbf{Control actions. (%s)}" % policy.name)
 
+    print("*"*120)
+
     plt.show()
 
 
-def feasibility_test(weak_breaks: bool = False, horizon: int = 5):
-    problem = Problem(N=horizon)
+def feasibility_test(weak_breaks: bool = False):
+    print("-"*50 + "Assignment 2.4" + "-"*50)
 
-    if weak_breaks:
-        print("Weak break")
-        problem.u_min = -5
+    N = [2, 5, 10]
 
-    x0_min = np.array([-10.0, 0])
-    x0_max = np.array([1.0, 25.0])
+    fig, axs = plt.subplots(1, 3, sharey=True)
 
-    for p0 in np.linspace(x0_min[0], x0_max[0], num=20):
-        for v0 in np.linspace(x0_min[1], x0_max[1], num=20):
-            policy = MPCCvxpy(problem)
-            logs = ControllerLog()
+    axs[0].set_ylabel("Velocity")
 
-            x0 = np.array([p0, v0])
-            x_sim = simulate(x0=x0, dynamics=problem.f,
-                             n_steps=50, policy=policy, log=logs)
-            failures = np.logical_not(logs.solver_success)
+    for i, horizon in enumerate(N):
 
-            plt.scatter(
-                *x_sim[:-1][failures, :].T, color="tab:red", marker="x", label="Infeasible"
-            )
+        labels = {"inf": "Infeasible", "f": "Feasible"}
 
-            const_style = dict(color="black", linestyle="--")
-            plt.axvline(problem.p_max, **const_style)
-            plt.axhline(problem.v_max, **const_style)
-            plt.axhline(problem.v_min, **const_style)
-            plt.xlabel("Position")
-            plt.ylabel("Velocity")
-    
+        problem = Problem(N=horizon)
+
+        if weak_breaks:
+            print("Weak break")
+            problem.u_min = -5
+
+        x0_min = np.array([-10.0, 0])
+        x0_max = np.array([1.0, 25.0])
+
+        for p0 in np.linspace(x0_min[0], x0_max[0], num=11):
+            for v0 in np.linspace(x0_min[1], x0_max[1], num=25):
+                policy = MPCCvxpy(problem)
+                logs = ControllerLog()
+
+                x0 = np.array([p0, v0])
+                x_sim = simulate(x0=x0, dynamics=problem.f,
+                                 n_steps=20, policy=policy, log=logs)
+
+                if not logs.solver_success[0]:
+                    axs[i].scatter(
+                        *x_sim[:-1][0, :].T, color="tab:red", marker="x", label=labels["inf"]
+                    )
+                    labels["inf"] = "_nolegend_"
+                if logs.solver_success[0]:
+                    axs[i].scatter(
+                        *x_sim[:-1][0, :].T, color="tab:blue", marker="o", facecolors='none', label=labels["f"]
+                    )
+                    labels["f"] = "_nolegend_"
+
+        const_style = dict(color="black", linestyle="--", linewidth=1.5)
+        axs[i].grid()
+        axs[i].axvline(problem.p_max, **const_style)
+        axs[i].axhline(problem.v_max, **const_style)
+        axs[i].axhline(problem.v_min, **const_style)
+        axs[i].legend(fontsize=16)
+        axs[i].set_xlabel("Position")
+        axs[i].set_title(r"\textbf{N = %d}" % horizon)
+
+    print("*"*120)
+
     plt.show()
 
 
 if __name__ == "__main__":
-    # run_mpc_simulation(weak_brakes=True) # assignment 2.3
-    feasibility_test()  # assignment 2.4
+    run_mpc_simulation(weak_brakes=True)  # assignment 2.3
+    feasibility_test(weak_breaks=True)  # assignment 2.4

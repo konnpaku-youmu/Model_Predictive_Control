@@ -343,13 +343,13 @@ def run_simulation():
 
 def main():
     # uncomment the following line for assignment 4.2
-    # test_circle()
+    test_circle()
 
     # uncomment the following line for assignment 4.5
     run_simulation()
 
     # uncomment the following line for assignment 4.6
-    # test_realtime()
+    test_realtime()
 
 
 if __name__ == "__main__":
