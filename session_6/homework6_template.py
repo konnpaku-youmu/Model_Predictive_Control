@@ -280,7 +280,7 @@ def exercise56(regularize=False):
 
 
 if __name__ == "__main__":
-    # test_linear_system()
+    test_linear_system()
     exercise2()
     # exercise34(False)
     # exercise34(True)

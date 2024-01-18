@@ -73,7 +73,7 @@ class EKF:
 
 
 class MHE:
-    def __init__(self, f: cs.Function, h: cs.Function, horizon, σ_w, σ_v, *,  lbx=-np.inf, ubx=np.inf, use_prior=False, σ_p=None, x0_est=None) -> None:
+    def __init__(self, f: cs.Function, h: cs.Function, horizon, σ_w, σ_v, *,  lbx=-np.inf, ubx=np.inf, use_prior=False, σ_p=None, x0_est=None, zero_clipping = False) -> None:
         """Create an instance of this `MHE`.
         Pass required arguments and build the MHE problem using
             `build_mhe`. You can use the output of `get_system_equations`.
@@ -97,7 +97,7 @@ class MHE:
         self.y_seq = []
 
         if self.use_prior:
-            self.setup_EKF(x0_est, σ_p, zero_clipping=True)
+            self.setup_EKF(x0_est, σ_p, zero_clipping = zero_clipping)
 
     def loss(self, w, v):
         return w.T @ np.linalg.inv(self.Q) @ w + v.T @ np.linalg.inv(self.R) @ v
@@ -123,6 +123,7 @@ class MHE:
         self.clip_zero = zero_clipping
 
         self.P_seq = [Pk]
+        self.x_seq = [x0_est]
         self.x_TN = x0_est
         self.P_TN = Pk
 
@@ -141,6 +142,7 @@ class MHE:
 
         Ak, Gk = self.dfdx(self.x_hat, 0), self.dfdw(self.x_hat, 0),
         self.Pk = Ak @ self.Pk @ Ak.T + Gk @ self.Q @ Gk.T
+        # no time update for prior, it's given by MHE
 
         self.P_seq.append(self.Pk)
         if len(self.P_seq) == self.N:
@@ -177,11 +179,16 @@ class MHE:
 
         if self.use_prior:
             x, _ = solver(self.P_TN, self.x_TN, self.y_seq)
-            self.x_bar = x[-1]
+            
+            self.x_seq.append(x[-1])
+            if len(self.x_seq) == self.N:
+                self.x_TN = self.x_seq.pop(0)
+            
+            self.x_bar = self.f(x[-1], 0)
         else:
             x, _ = solver(self.y_seq)
 
-        self.x_TN = x[1]  # state estimate x(T-N)
+        # self.x_TN = x[1]  # state estimate x(T-N)
 
         log("y", y)
         log("x", x[-1])
@@ -211,10 +218,10 @@ def part_1():
     t = np.arange(0, n_steps + 1) * cfg.Ts
 
     # plot output in `x` and `log.x`
-    show_result(t, x, log.x)
+    show_result(t, x, log.x, log.y)
 
 
-def part_2(N: int = 10):
+def part_2(N: int):
     """Implementation for Exercise 2."""
     print("\nExecuting Exercise 2\n" + "-" * 80)
     # problem setup
@@ -238,10 +245,10 @@ def part_2(N: int = 10):
     t = np.arange(0, n_steps + 1) * cfg.Ts
 
     # plot output in `x` and `log.x`
-    show_result(t, x, log.x)
+    show_result(t, x, log.x, log.y)
 
 
-def part_3():
+def part_3(N: int, clip_zero: bool):
     """Implementation for Homework."""
     print("\nExecuting Homework\n" + "-" * 80)
     # problem setup
@@ -251,11 +258,9 @@ def part_3():
     fs, hs = get_system_equations(symbolic=True, noise=True,
                                   Ts=cfg.Ts, rg=cfg.rg)
 
-    N = 10
-
     mhe = MHE(fs, hs, horizon=N, σ_w=cfg.sig_w,
               σ_v=cfg.sig_v, lbx=0.0, ubx=10.0,
-              use_prior=True, σ_p=cfg.sig_p, x0_est=cfg.x0_est)
+              use_prior=True, σ_p=cfg.sig_p, x0_est=cfg.x0_est, zero_clipping=clip_zero)
 
     # prepare log
     log = ObserverLog()
@@ -268,23 +273,26 @@ def part_3():
     t = np.arange(0, n_steps + 1) * cfg.Ts
 
     # plot output in `x` and `log.x`
-    show_result(t, x, log.x)
+    show_result(t, x, log.x, log.y)
 
 
-def show_result(t: np.ndarray, x: np.ndarray, x_: np.ndarray):
-    _, ax = plt.subplots(1, 1)
+def show_result(t: np.ndarray, x: np.ndarray, x_: np.ndarray, y_: np.ndarray):
+    _, ax = plt.subplots(1, 1, figsize=(8, 6))
     c = ["C0", "C1", "C2"]
     h = []
     for i, c in enumerate(c):
         h += ax.plot(t, x_[..., i], "--", color=c)
         h += ax.plot(t, x[..., i], "-", color=c)
+
+    h += ax.plot(t[:-1], y_/32.83, "-", color="tab:red")
+
     ax.set_xlim(t[0], t[-1])
     if np.max(x_) >= 10.0:
         ax.set_yscale('log')
     else:
         ax.set_ylim(0.0, 1.0)
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Concentration")
+    ax.set_xlabel(r"Time", fontsize=20)
+    ax.set_ylabel(r"Concentration", fontsize=20)
     ax.legend(
         h,
         [
@@ -294,12 +302,14 @@ def show_result(t: np.ndarray, x: np.ndarray, x_: np.ndarray):
             "B",
             "$C_{\mathrm{est}}$",
             "C",
+            r"$\frac{y}{32.83}$"
         ],
         loc="lower left",
         mode="expand",
-        ncol=6,
+        ncol=3,
         bbox_to_anchor=(0, 1.02, 1, 0.2),
         borderaxespad=0,
+        fontsize=20
     )
     ax.spines.right.set_visible(False)
     ax.spines.top.set_visible(False)
@@ -307,7 +317,13 @@ def show_result(t: np.ndarray, x: np.ndarray, x_: np.ndarray):
 
 
 if __name__ == "__main__":
-    # part_1()
-    part_2(N=10)
-    part_2(N=25)
-    part_3()
+    # part_1() # Plain EKF
+    # part_2(N=10)
+    # part_2(N=25) # Plain MHE
+
+    # Assignment
+    part_3(N=10, clip_zero=False)
+    # part_3(N=25, clip_zero=False)
+    # part_3(N=10, clip_zero=True)
+    # part_3(N=25, clip_zero=True)
+
